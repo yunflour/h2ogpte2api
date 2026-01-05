@@ -22,9 +22,12 @@ from models import (
     DeltaMessage, Usage
 )
 from h2ogpte_client import h2ogpte_client
+from session_manager import SessionManager
 
 
 # ============ 应用初始化 ============
+
+session_manager = SessionManager(h2ogpte_client)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,7 +35,11 @@ async def lifespan(app: FastAPI):
     print(f"🚀 H2OGPTE to OpenAI API 服务启动")
     print(f"📡 监听地址: http://{config.HOST}:{config.PORT}")
     print(f"🔗 目标服务: {config.H2OGPTE_BASE_URL}")
+    print(f"🔄 启动会话池管理器...")
+    await session_manager.start()
     yield
+    print("👋 正在停止会话池...")
+    await session_manager.stop()
     print("👋 服务关闭")
 
 
@@ -181,8 +188,8 @@ async def create_chat_completion(
         if not user_message and request.messages:
             user_message = request.messages[-1].content
         
-        # 创建聊天会话
-        chat_id = await h2ogpte_client.create_chat_session()
+        # 从会话池获取聊天会话
+        chat_id = await session_manager.get_session()
         
         if request.stream:
             # 流式响应
@@ -208,8 +215,8 @@ async def create_chat_completion(
                 max_tokens=request.max_tokens
             )
             
-            # 删除聊天会话（清理资源）
-            await h2ogpte_client.delete_chat_session(chat_id)
+            # 回收聊天会话
+            await session_manager.recycle_session(chat_id)
             
             completion_id = generate_completion_id()
             
@@ -320,8 +327,8 @@ async def stream_chat_completion(
     yield f"data: {final_chunk.model_dump_json()}\n\n"
     yield "data: [DONE]\n\n"
     
-    # 删除聊天会话（清理资源）
-    await h2ogpte_client.delete_chat_session(chat_id)
+    # 回收聊天会话
+    await session_manager.recycle_session(chat_id)
 
 
 # ============ 启动入口 ============
