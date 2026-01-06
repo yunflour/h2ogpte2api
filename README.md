@@ -31,11 +31,11 @@ cp .env.example .env
 
 ```env
 H2OGPTE_BASE_URL=https://h2ogpte.genai.h2o.ai
-IS_GUEST=true (可选，默认为 true)
+IS_GUEST=true (默认为 true,若为true,以下不填)
 H2OGPTE_SESSION=your-session-id-here (如果 IS_GUEST 为 false 则必填)
 H2OGPTE_CSRF_TOKEN=your-csrf-token-here (如果 IS_GUEST 为 false 则必填)
-H2OGPTE_WORKSPACE_ID=workspaces/your-uuid-here
-H2OGPTE_PROMPT_TEMPLATE_ID=your-prompt-template-uuid (可选)
+H2OGPTE_WORKSPACE_ID=workspaces/your-uuid-here (workspaces/h2ogpte-guest或用户自定义的uuid)
+H2OGPTE_PROMPT_TEMPLATE_ID=your-prompt-template-uuid (可选，若为guest模式则必须置空)
 API_KEY=your-secret-key (可选)
 ```
 
