@@ -30,6 +30,10 @@ class Config:
     # API Key 验证（留空则不验证）
     API_KEY: str = os.getenv("API_KEY", "")
     
+    # LLM 高级参数（Expert Settings）
+    # Reasoning Effort - 推理深度（0 表示不启用手动控制，65000 为最大）
+    REASONING_EFFORT: int = int(os.getenv("REASONING_EFFORT", "65000"))
+    
     # 动态凭证（运行时更新）
     _current_session: str = ""
     _current_csrf_token: str = ""

@@ -45,7 +45,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
     stream: Optional[bool] = False
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 32768
     presence_penalty: Optional[float] = 0
     frequency_penalty: Optional[float] = 0
     user: Optional[str] = None

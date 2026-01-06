@@ -157,7 +157,7 @@ class H2OGPTEClient:
             {"id": "auto", "name": "Autoselect LLM"},
             {"id": "claude-sonnet-4-5-20250929", "name": "Claude Sonnet 4.5"},
             {"id": "claude-3-7-sonnet", "name": "Claude 3.7 Sonnet"},
-            {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet"},
+            {"id": "claude-opus-4-1-20250805", "name": "Claude Opus 4.1"},
             {"id": "deepseek-ai/DeepSeek-R1", "name": "DeepSeek R1"},
             {"id": "deepseek-ai/DeepSeek-V3", "name": "DeepSeek V3"},
             {"id": "gpt-4.1", "name": "GPT-4.1"},
@@ -337,11 +337,16 @@ class H2OGPTEClient:
             "User-Agent": self.headers.get("user-agent", ""),
         }
         
+        # 计算 max_new_tokens（客户端值优先，上限 32768）
+        max_new_tokens = min(max_tokens, 32768) if max_tokens else 32768
+        
         # 构建 LLM 参数（与浏览器捕获的格式一致）
         llm_args = {
+            "max_new_tokens": max_new_tokens,  # Output Token Limit
             "enable_vision": "auto",
             "visible_vision_models": ["auto"],
             "use_agent": False,
+            "reasoning_effort": config.REASONING_EFFORT,  # Reasoning Effort (0=不启用, 65000=最大)
             "cost_controls": {
                 "max_cost": 0.05,
                 "willingness_to_pay": 1,
