@@ -25,19 +25,91 @@ from config import config
 class H2OGPTEClient:
     """H2OGPTE 客户端"""
     
+    # 类级别的刷新锁，确保并发401时只刷新一次
+    _refresh_lock: Optional[asyncio.Lock] = None
+    _refreshing: bool = False
+    
     def __init__(self):
         self.base_url = config.H2OGPTE_BASE_URL
         self.rpc_db_endpoint = f"{self.base_url}/rpc/db"
         self.ws_endpoint = self.base_url.replace("https://", "wss://") + "/ws"
-        self.headers = config.get_headers()
-        self.cookies = config.get_cookies()
+        self._initialized = False
+        
+        # 初始化刷新锁
+        if H2OGPTEClient._refresh_lock is None:
+            H2OGPTEClient._refresh_lock = asyncio.Lock()
+    
+    @property
+    def headers(self) -> dict:
+        """动态获取请求头"""
+        return config.get_headers()
+    
+    @property
+    def cookies(self) -> dict:
+        """动态获取 cookies"""
+        return config.get_cookies()
     
     def _get_cookie_header(self) -> str:
         """获取 Cookie 头字符串"""
         return "; ".join([f"{k}={v}" for k, v in self.cookies.items()])
     
+    async def _ensure_credentials(self) -> bool:
+        """确保有有效的凭证"""
+        # 检查是否已有凭证
+        if config.get_session() and config.get_csrf_token():
+            return True
+        
+        # Guest 模式下尝试获取新凭证
+        if config.IS_GUEST:
+            return await self._refresh_credentials()
+        
+        # 非 Guest 模式没有凭证时报错
+        print("非 Guest 模式，请在 .env 中配置 H2OGPTE_SESSION 和 H2OGPTE_CSRF_TOKEN")
+        return False
+    
+    async def _refresh_credentials(self, force_new: bool = False) -> bool:
+        """
+        刷新凭证（Guest 和非 Guest 模式均支持）
+        
+        使用锁确保并发401时只刷新一次
+        
+        Args:
+            force_new: 是否强制获取新 Guest（仅 Guest 模式有效）
+        """
+        # 使用锁确保只刷新一次
+        async with H2OGPTEClient._refresh_lock:
+            # 再次检查，可能其他请求已经刷新成功
+            if not force_new and config.get_session() and config.get_csrf_token():
+                # 如果刚刚有其他请求刷新成功，直接返回
+                if H2OGPTEClient._refreshing:
+                    H2OGPTEClient._refreshing = False
+                    return True
+            
+            H2OGPTEClient._refreshing = True
+            
+            from credential_store import credential_store
+            
+            if not force_new:
+                # 优先尝试续期当前账号（保持同一账号，利用现有额度）
+                cred = await credential_store.renew_session()
+                if cred:
+                    config.update_credentials(cred.session, cred.csrf_token)
+                    return True
+            
+            # Guest 模式：续期失败则获取新 Guest
+            if config.IS_GUEST:
+                cred = await credential_store.refresh_credential()
+                if cred:
+                    config.update_credentials(cred.session, cred.csrf_token)
+                    return True
+            
+            return False
+    
     async def _rpc_db(self, method: str, *args) -> Any:
-        """调用 /rpc/db 端点"""
+        """调用 /rpc/db 端点，支持 401 自动刷新"""
+        # 确保有凭证
+        await self._ensure_credentials()
+        
         payload = json.dumps([method, *args])
         
         async with httpx.AsyncClient() as client:
@@ -48,6 +120,20 @@ class H2OGPTEClient:
                 content=payload,
                 timeout=60.0
             )
+            
+            # 401 错误自动刷新凭证并重试
+            if response.status_code == 401 and config.IS_GUEST:
+                print("检测到 401 Unauthorized，正在刷新凭证...")
+                if await self._refresh_credentials():
+                    # 使用新凭证重试
+                    response = await client.post(
+                        self.rpc_db_endpoint,
+                        headers=self.headers,
+                        cookies=self.cookies,
+                        content=payload,
+                        timeout=60.0
+                    )
+            
             response.raise_for_status()
             return response.json()
     
@@ -112,7 +198,9 @@ class H2OGPTEClient:
             return []
     
     async def _rpc_job(self, method: str, params: Dict[str, Any]) -> Any:
-        """调用 /rpc/job 端点"""
+        """调用 /rpc/job 端点，支持 401 自动刷新"""
+        await self._ensure_credentials()
+        
         payload = json.dumps([method, params])
         
         async with httpx.AsyncClient() as client:
@@ -123,6 +211,19 @@ class H2OGPTEClient:
                 content=payload,
                 timeout=60.0
             )
+            
+            # 401 错误自动刷新凭证并重试
+            if response.status_code == 401 and config.IS_GUEST:
+                print("检测到 401 Unauthorized，正在刷新凭证...")
+                if await self._refresh_credentials():
+                    response = await client.post(
+                        f"{self.base_url}/rpc/job",
+                        headers=self.headers,
+                        cookies=self.cookies,
+                        content=payload,
+                        timeout=60.0
+                    )
+            
             response.raise_for_status()
             return response.json()
     

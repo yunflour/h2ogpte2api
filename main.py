@@ -35,6 +35,17 @@ async def lifespan(app: FastAPI):
     print(f"🚀 H2OGPTE to OpenAI API 服务启动")
     print(f"📡 监听地址: http://{config.HOST}:{config.PORT}")
     print(f"🔗 目标服务: {config.H2OGPTE_BASE_URL}")
+    print(f"👤 运行模式: {'Guest (自动凭证)' if config.IS_GUEST else '登录用户'}")
+    
+    # Guest 模式下初始化凭证
+    if config.IS_GUEST:
+        print("🔑 正在初始化 Guest 凭证...")
+        await h2ogpte_client._ensure_credentials()
+        if config.get_session():
+            print(f"✓ 凭证初始化成功")
+        else:
+            print("⚠ 凭证初始化失败，将在首次请求时重试")
+    
     print(f"🔄 启动会话池管理器...")
     await session_manager.start()
     yield

@@ -6,6 +6,8 @@
 
 - ✅ `/v1/models` - 获取可用模型列表
 - ✅ `/v1/chat/completions` - 聊天补全接口（支持流式和非流式）
+- ✅ 会话池 (Session Pool) - 后台自动管理和预热会话，提升响应速度
+- ✅ 自动凭据管理 - 支持 Guest 用户自动获取和续期凭据
 - ✅ 标准 OpenAI API 格式响应
 - ✅ CORS 支持
 
@@ -29,14 +31,15 @@ cp .env.example .env
 
 ```env
 H2OGPTE_BASE_URL=https://h2ogpte.genai.h2o.ai
-H2OGPTE_SESSION=your-session-id-here
-H2OGPTE_CSRF_TOKEN=your-csrf-token-here
+IS_GUEST=true (可选，默认为 true)
+H2OGPTE_SESSION=your-session-id-here (如果 IS_GUEST 为 false 则必填)
+H2OGPTE_CSRF_TOKEN=your-csrf-token-here (如果 IS_GUEST 为 false 则必填)
 H2OGPTE_WORKSPACE_ID=workspaces/your-uuid-here
 H2OGPTE_PROMPT_TEMPLATE_ID=your-prompt-template-uuid (可选)
 API_KEY=your-secret-key (可选)
 ```
 
-> **获取凭据**：
+> **获取凭据 (非 Guest 模式)**：
 > 1. 登录 h2ogpte 网站
 > 2. 打开浏览器开发者工具 (F12)
 > 3. **Session ID & Token**: 在网络请求中找到 Cookie (`h2ogpte.session`) 和 Header (`x-csrf-token`)
@@ -99,17 +102,20 @@ API Key: any-value (当前未启用验证)
 
 ```
 h2ogpt2api/
-├── main.py              # FastAPI 主应用
-├── config.py            # 配置管理
-├── models.py            # Pydantic 数据模型
-├── h2ogpte_client.py    # H2OGPTE API 客户端
-├── requirements.txt     # Python 依赖
-├── .env.example         # 环境变量模板
-└── README.md            # 项目说明
+├── main.py                 # FastAPI 主应用
+├── config.py               # 配置管理
+├── models.py               # Pydantic 数据模型
+├── h2ogpte_client.py       # H2OGPTE API 客户端
+├── session_manager.py      # 会话池管理器
+├── credential_store.py     # 凭据存储管理（自动续期逻辑）
+├── requirements.txt        # Python 依赖
+├── .env.example            # 环境变量模板
+└── README.md               # 项目说明
 ```
 
 ## 注意事项
 
-1. **Session 有效期**：H2OGPTE 的 session 可能会过期，需要定期更新
-2. **请求限制**：请注意 H2OGPTE 服务的请求频率限制
-3. **安全性**：生产环境中建议添加 API Key 验证
+1. **Session & 凭据**：程序支持自动管理 Guest 凭据。对于登录用户，建议定期更新 Session ID。
+2. **会自动续期**：Guest 模式下，程序会自动检测 401 错误并尝试重新获取凭据。
+3. **请求限制**：请注意 H2OGPTE 服务的请求频率限制。
+4. **安全性**：建议在 `.env` 中设置 `API_KEY` 以启用基础验证。

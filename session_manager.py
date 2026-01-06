@@ -7,7 +7,8 @@ from h2ogpte_client import H2OGPTEClient
 logger = logging.getLogger(__name__)
 
 class SessionManager:
-    def __init__(self, client: H2OGPTEClient, pool_size: int = 3, max_pool_size: int = 10):
+    """此处可配置会话池大小"""
+    def __init__(self, client: H2OGPTEClient, pool_size: int = 5, max_pool_size: int = 10):
         self.client = client
         self.target_pool_size = pool_size
         self.max_pool_size = max_pool_size
