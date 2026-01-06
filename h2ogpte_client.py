@@ -106,7 +106,7 @@ class H2OGPTEClient:
             return False
     
     async def _rpc_db(self, method: str, *args) -> Any:
-        """调用 /rpc/db 端点，支持 401 自动刷新"""
+        """调用 /rpc/db 端点，支持 401/429 自动刷新"""
         # 确保有凭证
         await self._ensure_credentials()
         
@@ -121,11 +121,22 @@ class H2OGPTEClient:
                 timeout=60.0
             )
             
-            # 401 错误自动刷新凭证并重试
-            if response.status_code == 401 and config.IS_GUEST:
+            # 401 错误：凭证失效，尝试续期
+            if response.status_code == 401:
                 print("检测到 401 Unauthorized，正在刷新凭证...")
                 if await self._refresh_credentials():
-                    # 使用新凭证重试
+                    response = await client.post(
+                        self.rpc_db_endpoint,
+                        headers=self.headers,
+                        cookies=self.cookies,
+                        content=payload,
+                        timeout=60.0
+                    )
+            
+            # 429 错误：配额耗尽，获取新 Guest（仅 Guest 模式）
+            if response.status_code == 429 and config.IS_GUEST:
+                print("检测到 429 Too Many Requests，Guest 配额耗尽，正在获取新 Guest...")
+                if await self._refresh_credentials(force_new=True):
                     response = await client.post(
                         self.rpc_db_endpoint,
                         headers=self.headers,
@@ -198,7 +209,7 @@ class H2OGPTEClient:
             return []
     
     async def _rpc_job(self, method: str, params: Dict[str, Any]) -> Any:
-        """调用 /rpc/job 端点，支持 401 自动刷新"""
+        """调用 /rpc/job 端点，支持 401/429 自动刷新"""
         await self._ensure_credentials()
         
         payload = json.dumps([method, params])
@@ -212,10 +223,22 @@ class H2OGPTEClient:
                 timeout=60.0
             )
             
-            # 401 错误自动刷新凭证并重试
-            if response.status_code == 401 and config.IS_GUEST:
+            # 401 错误：凭证失效，尝试续期
+            if response.status_code == 401:
                 print("检测到 401 Unauthorized，正在刷新凭证...")
                 if await self._refresh_credentials():
+                    response = await client.post(
+                        f"{self.base_url}/rpc/job",
+                        headers=self.headers,
+                        cookies=self.cookies,
+                        content=payload,
+                        timeout=60.0
+                    )
+            
+            # 429 错误：配额耗尽，获取新 Guest（仅 Guest 模式）
+            if response.status_code == 429 and config.IS_GUEST:
+                print("检测到 429 Too Many Requests，Guest 配额耗尽，正在获取新 Guest...")
+                if await self._refresh_credentials(force_new=True):
                     response = await client.post(
                         f"{self.base_url}/rpc/job",
                         headers=self.headers,
