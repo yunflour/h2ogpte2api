@@ -49,8 +49,7 @@ API_KEY=your-secret-key (可选)
 ### 3. 启动服务
 
 ```bash
-# 默认端口为 2156，可通过环境变量 PORT 指定端口
-PORT=3000 python main.py
+python main.py
 ```
 
 服务将在 `http://localhost:<PORT>` 启动，未设置 `PORT` 时默认使用 `2156`。
