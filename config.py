@@ -37,7 +37,6 @@ class Config:
     # 注入提示词
     SYSTEM_PROMPT_INJECT: str = os.getenv("SYSTEM_PROMPT_INJECT", "")
 
-    
     # 动态凭证（运行时更新）
     _current_session: str = ""
     _current_csrf_token: str = ""
